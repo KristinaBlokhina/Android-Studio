@@ -38,6 +38,15 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
 import com.example.androidstudiosetup.ui.theme.AndroidStudioSetUpTheme
 
 class MainActivity : ComponentActivity() {
@@ -60,6 +69,7 @@ enum class AppDestinations(
     REMEMBER("remember", Icons.Default.Home),
     SAVEABLE("rememberSaveable", Icons.Default.Favorite),
     VIEWMODEL("ViewModel", Icons.Default.AccountBox),
+    LIST("Список", Icons.Default.Menu),
 }
 
 @Composable
@@ -90,6 +100,7 @@ fun MyApp() {
                 AppDestinations.REMEMBER -> RememberNavHost(navController, contentModifier)
                 AppDestinations.SAVEABLE -> SaveableScreen(contentModifier)
                 AppDestinations.VIEWMODEL -> ViewModelScreen(contentModifier)
+                AppDestinations.LIST -> ListScreen(contentModifier)
             }
         }
     }
@@ -235,5 +246,149 @@ fun ViewModelScreen(
         Button(onClick = { vm.onButtonClick() }) {
             Text("OK")
         }
+    }
+}
+
+// =====================================================================
+// ---------- Лабораторна 3: списки (LazyColumn / LazyRow) ----------
+// =====================================================================
+
+// 1) Моделі даних. Два різні класи мають спільний інтерфейс,
+//    щоб лежати в одному списку.
+sealed interface ListEntry {
+    val key: String // унікальний ключ елемента для LazyColumn
+}
+
+data class Book(
+    val id: Int,
+    val title: String,
+    val author: String,
+    val year: Int,
+) : ListEntry {
+    override val key: String get() = "book-$id"
+}
+
+data class Movie(
+    val id: Int,
+    val title: String,
+    val director: String,
+    val rating: Double,
+) : ListEntry {
+    override val key: String get() = "movie-$id"
+}
+
+// 2) Репозиторій: єдине місце, звідки беруться (тестові) дані
+class ItemsRepository {
+    fun getCategories(): List<String> = listOf(
+        "Усе", "Книги", "Фільми", "Класика", "Фантастика", "Драма", "Нове",
+    )
+
+    fun getItems(): List<ListEntry> = listOf(
+        Book(1, "Кобзар", "Тарас Шевченко", 1840),
+        Movie(1, "Тіні забутих предків", "Сергій Параджанов", 8.1),
+        Book(2, "Лісова пісня", "Леся Українка", 1911),
+        Movie(2, "Інтерстеллар", "Крістофер Нолан", 8.7),
+        Book(3, "Intermezzo", "Михайло Коцюбинський", 1908),
+        Movie(3, "Начало", "Крістофер Нолан", 8.8),
+        Book(4, "Захар Беркут", "Іван Франко", 1883),
+        Movie(4, "Хрещений батько", "Френсіс Форд Коппола", 9.2),
+        Book(5, "Тигролови", "Іван Багряний", 1944),
+        Movie(5, "Матриця", "Вачовскі", 8.7),
+        Book(6, "Місто", "Валер'ян Підмогильний", 1928),
+        Movie(6, "Зелена миля", "Френк Дарабонт", 8.6),
+    )
+}
+
+// 3) ViewModel: тримає дані списку (переживає поворот екрана)
+class ListViewModel : ViewModel() {
+    private val repository = ItemsRepository()
+
+    val categories: List<String> = repository.getCategories()
+    val items: List<ListEntry> = repository.getItems()
+}
+
+// 4) Екран зі списком: LazyColumn займає весь вільний простір
+@Composable
+fun ListScreen(
+    modifier: Modifier = Modifier,
+    vm: ListViewModel = viewModel(),
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        // (додатково) горизонтальний список всередині вертикального
+        item {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(vm.categories) { category ->
+                    CategoryChip(category)
+                }
+            }
+        }
+
+        // Основний список: розмітка залежить від типу елемента
+        items(vm.items, key = { it.key }) { entry ->
+            when (entry) {
+                is Book -> BookItem(entry)
+                is Movie -> MovieItem(entry)
+            }
+        }
+    }
+}
+
+// Розмітка елемента для класу Book
+@Composable
+fun BookItem(book: Book, modifier: Modifier = Modifier) {
+    Card(modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = book.title, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = "Автор: ${book.author}", fontSize = 14.sp)
+            Text(text = "Рік: ${book.year}", fontSize = 14.sp)
+        }
+    }
+}
+
+// Розмітка елемента для класу Movie (інший вигляд: рейтинг зліва, інший колір)
+@Composable
+fun MovieItem(movie: Movie, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = movie.rating.toString(),
+                fontSize = 28.sp,
+                fontWeight = FontWeight.ExtraBold,
+            )
+            Spacer(modifier = Modifier.padding(horizontal = 8.dp))
+            Column {
+                Text(text = movie.title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(text = "Режисер: ${movie.director}", fontSize = 14.sp)
+            }
+        }
+    }
+}
+
+// Елемент горизонтального списку
+@Composable
+fun CategoryChip(name: String) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+        ),
+    ) {
+        Text(
+            text = name,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            fontSize = 14.sp,
+        )
     }
 }
