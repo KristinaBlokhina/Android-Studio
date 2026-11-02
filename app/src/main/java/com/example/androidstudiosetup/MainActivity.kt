@@ -34,6 +34,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.example.androidstudiosetup.ui.theme.AndroidStudioSetUpTheme
 
 class MainActivity : ComponentActivity() {
@@ -64,6 +68,10 @@ fun MyApp() {
     // щоб після повороту екрана ви лишилися на тій самій вкладці
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.REMEMBER) }
 
+    // NavController створюємо один раз на верхньому рівні (як радить стаття),
+    // щоб історія переходів не губилась при перемиканні нижніх вкладок
+    val navController = rememberNavController()
+
     NavigationSuiteScaffold(
         navigationSuiteItems = {
             AppDestinations.entries.forEach { destination ->
@@ -79,7 +87,7 @@ fun MyApp() {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
             val contentModifier = Modifier.padding(innerPadding)
             when (currentDestination) {
-                AppDestinations.REMEMBER -> RememberScreen(contentModifier)
+                AppDestinations.REMEMBER -> RememberNavHost(navController, contentModifier)
                 AppDestinations.SAVEABLE -> SaveableScreen(contentModifier)
                 AppDestinations.VIEWMODEL -> ViewModelScreen(contentModifier)
             }
@@ -87,10 +95,65 @@ fun MyApp() {
     }
 }
 
-// ---------- Екран 1: remember (після повороту екрана значення ЗНИКНЕ) ----------
+// ---------- Навігація всередині вкладки remember (лабораторна 2) ----------
+// Маршрути (назви підекранів)
+object Routes {
+    const val MAIN = "main"
+    const val DETAILS = "details"
+}
+
+@Composable
+fun RememberNavHost(
+    navController: NavHostController,
+    modifier: Modifier = Modifier,
+) {
+    NavHost(
+        navController = navController,
+        startDestination = Routes.MAIN,
+        modifier = modifier,
+    ) {
+        // Підекран 1: розмітка з лабораторної 1 + кнопка переходу
+        composable(Routes.MAIN) {
+            // Передаємо лише колбек, а не сам navController
+            RememberScreen(onNext = { navController.navigate(Routes.DETAILS) })
+        }
+        // Підекран 2: довільна розмітка + кнопка повернення
+        composable(Routes.DETAILS) {
+            DetailsScreen(onBack = { navController.navigateUp() })
+        }
+    }
+}
+
+// Підекран 2: довільна розмітка
+@Composable
+fun DetailsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        verticalArrangement = Arrangement.SpaceEvenly,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = "Другий підекран",
+            fontSize = 36.sp,
+            fontWeight = FontWeight.ExtraBold,
+        )
+        Text(
+            text = "Сюди ви потрапили за допомогою NavController.\n" +
+                    "Поверніться кнопкою нижче або системною кнопкою/жестом «Назад».",
+            fontSize = 18.sp,
+        )
+        Button(onClick = onBack) {
+            Text("← Назад")
+        }
+    }
+}
+
+// ---------- Підекран 1: remember (після повороту екрана значення ЗНИКНЕ) ----------
 // Усе по центру, середній шрифт, вузька кнопка
 @Composable
-fun RememberScreen(modifier: Modifier = Modifier) {
+fun RememberScreen(onNext: () -> Unit, modifier: Modifier = Modifier) {
     var text by remember { mutableStateOf("Текст до натискання (remember)") }
 
     Column(
@@ -105,6 +168,11 @@ fun RememberScreen(modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxWidth(0.5f),
         ) {
             Text("Натисни")
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        // Кнопка переходу на другий підекран
+        Button(onClick = onNext) {
+            Text("Далі →")
         }
     }
 }
